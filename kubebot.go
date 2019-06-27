@@ -3,7 +3,9 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
+	"log"
 
 	"github.com/go-chat-bot/bot"
 )
@@ -157,9 +159,80 @@ func kubectl(command *bot.Cmd) (msg string, err error) {
 		return fmt.Sprintf(forbiddenFlagResponse, nickname), nil
 	}
 
+	log.Printf("kubebot: user %s, channel %s: execute '%s %s'", nickname, command.Channel, "kubectl", strings.Join(command.Args, " "))
 	output := execute("kubectl", command.Args...)
 
 	return fmt.Sprintf(okResponse, nickname, output), nil
+}
+
+func twx_scale(ns string, environment string, replicas int) (out string) {
+	DEPLOYMENT_FMT := "%s-twx-%s-deployment"
+	NAMESPACE_FMT := "%s-nexiles-cloud"
+
+	namespace := fmt.Sprintf(NAMESPACE_FMT, ns)
+	deployment := fmt.Sprintf(DEPLOYMENT_FMT, ns, environment)
+
+	log.Printf("twx_scale: namespace %s, deployment %s: scale to %d",
+		namespace, deployment, replicas)
+
+	output := execute("kubectl",
+		"-n",
+		namespace,
+		"scale",
+		"deployment",
+		"--replicas",
+		fmt.Sprintf("%d", replicas),
+		deployment)
+
+	return output
+}
+
+func twx_restart(ns string, environment string) (output string, err error) {
+	scale_down := twx_scale(ns, environment, 0)
+	scale_up := twx_scale(ns, environment, 1)
+
+	return scale_down + "\n" + scale_up, nil
+}
+
+func thingworx(command *bot.Cmd) (msg string, err error) {
+	t := time.Now()
+	time := t.Format(time.RFC3339)
+	nickname := command.User.Nick
+
+	usage := "!thingworx help"
+
+	if !kb.admins[nickname] {
+		fmt.Printf(forbiddenUserMessage, time, nickname)
+		return fmt.Sprintf(forbiddenUserResponse, nickname), nil
+	}
+
+	if !kb.channels[command.Channel] {
+		fmt.Printf(forbiddenChannelMessage, time, command.Channel, nickname)
+		return fmt.Sprintf(forbiddenChannelResponse, nickname), nil
+	}
+
+	cmd := command.Args[0]
+	if len(command.Args) < 1 {
+		return usage, nil
+	}
+
+	if cmd == "restart" {
+		if len(command.Args) < 3 {
+			return usage, nil
+		}
+
+		namespace := command.Args[1]
+		environment := command.Args[2]
+
+		log.Printf("kubebot: user %s, channel %s: thingworx restart ns %s, env %s", nickname, command.Channel, namespace, environment)
+
+		output, _ := twx_restart(namespace, environment)
+		return fmt.Sprintf(okResponse, nickname, output), nil
+	} else if cmd == "help" {
+		return "Sorry, still working on that", nil
+	}
+
+	return "Sorry, can't do that", nil
 }
 
 func init() {
@@ -168,4 +241,10 @@ func init() {
 		"Kubectl Slack integration",
 		"",
 		kubectl)
+
+	bot.RegisterCommand(
+		"thingworx",
+		"thingworx devop commands",
+		"",
+		thingworx)
 }

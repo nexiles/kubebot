@@ -6,6 +6,9 @@ import (
 	"os"
 
 	"github.com/go-chat-bot/bot/slack"
+	_ "github.com/go-chat-bot/plugins/catfacts"
+	_ "github.com/go-chat-bot/plugins/catgif"
+	_ "github.com/go-chat-bot/plugins/chucknorris"
 )
 
 const (

@@ -1,10 +1,11 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 func execute(name string, arg ...string) string {
@@ -13,25 +14,29 @@ func execute(name string, arg ...string) string {
 	os.Stdout = w
 	os.Stderr = w
 
-	cmd := exec.Command(name, arg...)
+	log.Printf("execute: command: '%s %s'", name, strings.Join(arg, " "))
 
+	cmd := exec.Command(name, arg...)
 	stdin, err := cmd.StdinPipe()
 
 	if err != nil {
-		fmt.Println(err)
+		log.Printf("Error: StdinPipe:", err)
+		return ""
 	}
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	if err = cmd.Start(); err != nil {
-		fmt.Println("An error occured: ", err)
+		log.Println("Error: cmd.Start(): ", err)
 	}
 
-	stdin.Close()
-	cmd.Wait()
+	_ = stdin.Close()
 
-	w.Close()
+	log.Println("waiting for command to exit ...")
+	_ = cmd.Wait()
+	_ = w.Close()
+
 	out, _ := ioutil.ReadAll(r)
 	os.Stdout = rescueStdout
 
